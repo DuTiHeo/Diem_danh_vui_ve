@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: neu_attendance_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-neu_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-neu_password}
+      POSTGRES_DB: ${POSTGRES_DB:-neu_attendance}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: ../docker/backend.Dockerfile
+    container_name: neu_attendance_backend
+    restart: always
+    depends_on:
+      - db
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-neu_admin}:${POSTGRES_PASSWORD:-neu_password}@db:5432/${POSTGRES_DB:-neu_attendance}
+      - JWT_SECRET=${JWT_SECRET:-supersecretkey_change_me_in_production}
+      - DEV_MOCK_AUTH=${DEV_MOCK_AUTH:-true}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../backend:/app
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: ../docker/frontend.Dockerfile
+    container_name: neu_attendance_frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    volumes:
+      - ../frontend/src:/app/src
+      - ../frontend/public:/app/public
+
+volumes:
+  postgres_data:
+
