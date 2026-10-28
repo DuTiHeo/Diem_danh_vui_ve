@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -22,15 +23,16 @@ export default function RootLayout({
             </div>
           </div>
           <nav className="text-sm font-medium text-neu-gray flex gap-4">
-            <a href="/" className="hover:text-neu-primary transition-colors">Bảng điều khiển</a>
-            <a href="/login" className="hover:text-neu-primary transition-colors">Đăng nhập</a>
+            <Link href="/" className="hover:text-neu-primary transition-colors">Bảng điều khiển</Link>
+            <Link href="/student" className="hover:text-neu-primary transition-colors">Sinh viên điểm danh</Link>
+            <Link href="/login" className="hover:text-neu-primary transition-colors">Đăng nhập</Link>
           </nav>
         </header>
         <main className="flex-1 max-w-7xl w-full mx-auto p-6">
           {children}
         </main>
         <footer className="py-6 text-center text-xs text-neu-gray border-t border-neu-border mt-auto">
-          &copy; {new Date().getFullYear()} Đại học Kinh tế Quốc Dân. Hệ thống điểm danh nội bộ.
+          &copy; 2026 Đại học Kinh tế Quốc Dân. Hệ thống điểm danh nội bộ.
         </footer>
       </body>
     </html>
