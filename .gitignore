@@ -66,4 +66,5 @@ yarn-error.log*
 
 # Uploaded files
 backend/uploads/
+test_ultrasound/
 
