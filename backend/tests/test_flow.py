@@ -58,12 +58,12 @@ def test_full_flow():
         token_st = res.json()["access_token"]
         headers_st = {"Authorization": f"Bearer {token_st}"}
         
-        # 6. Student Marks Attendance via QR
+        # 6. Student Marks Attendance via QR (within campus geofence)
         res = client.post("/attendance/qr", headers=headers_st, json={
             "pin_code": pin_code,
-            "latitude": 21.0,
-            "longitude": 105.8,
-            "accuracy": 10.0
+            "latitude": 20.99920,
+            "longitude": 105.84230,
+            "accuracy": 5.0
         })
         assert res.status_code == 200, res.text
         
@@ -72,15 +72,54 @@ def test_full_flow():
             "pin_code": pin_code,
             "student_code": "11223355",
             "full_name": "Tran Thi B",
-            "latitude": 21.0,
-            "longitude": 105.8,
-            "accuracy": 10.0
+            "latitude": 20.99920,
+            "longitude": 105.84230,
+            "accuracy": 5.0
         })
         assert res.status_code == 200, res.text
-        
-        # 8. Close Session
+
+        # 8. Check Session Detail
+        res = client.get(f"/sessions/{session_id}")
+        assert res.status_code == 200, res.text
+        session_detail = res.json()
+        assert session_detail["attended_count"] == 2
+        assert len(session_detail["students"]) == 2
+
+        # 9. Test QR Lookup by PIN
+        res = client.get(f"/sessions/qr/{pin_code}")
+        assert res.status_code == 200, res.text
+        assert res.json()["session_id"] == session_id
+
+        # 10. Close Session
         res = client.post(f"/sessions/{session_id}/close", headers=headers_gv)
         assert res.status_code == 200, res.text
-        
+
+        # 11. Check Course Detail
+        res = client.get(f"/courses/{course_id}", headers=headers_gv)
+        assert res.status_code == 200, res.text
+        course_detail = res.json()
+        assert len(course_detail["students"]) == 2
+        assert len(course_detail["sessions"]) == 1
+
+        # 12. Test Excel Export
+        res = client.get(f"/courses/{course_id}/export", headers=headers_gv)
+        assert res.status_code == 200, res.text
+        assert "application/vnd.openxmlformats" in res.headers["content-type"]
+        assert len(res.content) > 1000
+
+        # 13. Test Real NEU LMS .xls Upload
+        if os.path.exists("docs/PTTC 66ECQ thứ 7 B301.xls"):
+            with open("docs/PTTC 66ECQ thứ 7 B301.xls", "rb") as f:
+                xls_bytes = f.read()
+            res = client.post(
+                "/courses/upload",
+                headers=headers_gv,
+                files={"file": ("PTTC 66ECQ thứ 7 B301.xls", xls_bytes, "application/vnd.ms-excel")}
+            )
+            assert res.status_code == 200, res.text
+            neu_course = res.json()
+            assert neu_course["total_students"] == 61
+            assert "Phân tích tài chính" in neu_course["course_name"]
+
         print("All tests passed successfully!")
 
