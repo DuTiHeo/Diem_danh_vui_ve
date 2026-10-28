@@ -16,7 +16,7 @@ from app.services.websocket_manager import manager
 
 router = APIRouter()
 
-async def validate_pin_and_geo(db: AsyncSession, pin_code: str, lat: float, lon: float, acc: float) -> tuple[QRToken, AttendanceSession]:
+async def validate_pin_and_geo(db: AsyncSession, pin_code: str, lat: float, lon: float, acc: float) -> tuple[QRToken, AttendanceSession, float | None]:
     res_t = await db.execute(select(QRToken).where(QRToken.pin_code == pin_code))
     token = res_t.scalar_one_or_none()
     
@@ -32,15 +32,17 @@ async def validate_pin_and_geo(db: AsyncSession, pin_code: str, lat: float, lon:
         raise HTTPException(status_code=400, detail="Buổi điểm danh này đang đóng")
 
     # Kiểm tra Geo
+    dist_recorded = None
     if session.building_id:
         res_b = await db.execute(select(Building).where(Building.id == session.building_id))
         building = res_b.scalar_one_or_none()
         if building:
             valid, dist = is_within_geofence(lat, lon, building.latitude, building.longitude, building.radius_meters, acc)
+            dist_recorded = dist
             if not valid:
                 raise HTTPException(status_code=400, detail=f"Vị trí quá xa (Cách {int(dist)}m). Hãy di chuyển lại gần giảng đường {building.code}")
     
-    return token, session
+    return token, session, dist_recorded
 
 @router.post("/qr", response_model=AttendanceStatusResponse)
 async def submit_attendance_qr(
@@ -51,7 +53,7 @@ async def submit_attendance_qr(
     if current_user.role != UserRole.STUDENT:
         raise HTTPException(status_code=403, detail="Chỉ sinh viên mới được quét QR")
         
-    token, session = await validate_pin_and_geo(db, req.pin_code, req.latitude, req.longitude, req.accuracy)
+    token, session, dist = await validate_pin_and_geo(db, req.pin_code, req.latitude, req.longitude, req.accuracy)
     
     # Tìm student ID
     res_st = await db.execute(select(Student).where(Student.user_id == current_user.id))
@@ -83,6 +85,7 @@ async def submit_attendance_qr(
     record.method = AttendanceMethod.QR
     record.latitude = req.latitude
     record.longitude = req.longitude
+    record.distance_meters = round(dist, 1) if dist is not None else None
     
     await db.commit()
     
@@ -90,7 +93,12 @@ async def submit_attendance_qr(
     await manager.broadcast_to_session(str(session.id), {
         "event": "ATTENDANCE_MARKED",
         "student_id": str(student.id),
-        "marked_at": record.marked_at.isoformat()
+        "student_code": student.student_code,
+        "name": student.full_name,
+        "status": "ATTENDED",
+        "time": record.marked_at.strftime("%H:%M:%S"),
+        "method": "QR",
+        "distance_meters": record.distance_meters
     })
     
     return AttendanceStatusResponse(success=True, message="Điểm danh thành công", student_name=student.full_name)
@@ -102,7 +110,7 @@ async def submit_attendance_pin(
     db: AsyncSession = Depends(get_db)
 ):
     # Dành cho Public (không login)
-    token, session = await validate_pin_and_geo(db, req.pin_code, req.latitude, req.longitude, req.accuracy)
+    token, session, dist = await validate_pin_and_geo(db, req.pin_code, req.latitude, req.longitude, req.accuracy)
     
     res_st = await db.execute(select(Student).where(Student.student_code == req.student_code))
     student = res_st.scalar_one_or_none()
@@ -131,13 +139,19 @@ async def submit_attendance_pin(
     record.method = AttendanceMethod.PIN_ANONYMOUS
     record.latitude = req.latitude
     record.longitude = req.longitude
+    record.distance_meters = round(dist, 1) if dist is not None else None
     
     await db.commit()
     
     await manager.broadcast_to_session(str(session.id), {
         "event": "ATTENDANCE_MARKED",
         "student_id": str(student.id),
-        "marked_at": record.marked_at.isoformat()
+        "student_code": student.student_code,
+        "name": student.full_name,
+        "status": "ATTENDED",
+        "time": record.marked_at.strftime("%H:%M:%S"),
+        "method": "PIN",
+        "distance_meters": record.distance_meters
     })
     
     return AttendanceStatusResponse(success=True, message="Điểm danh PIN thành công", student_name=student.full_name)
@@ -161,11 +175,18 @@ async def manual_override(
     record.updated_by_lecturer_id = current_user.id
     
     await db.commit()
+
+    # Get student name
+    res_st = await db.execute(select(Student).where(Student.id == req.student_id))
+    st = res_st.scalar_one_or_none()
     
-    await manager.broadcast_to_session(req.session_id, {
+    await manager.broadcast_to_session(str(req.session_id), {
         "event": "ATTENDANCE_MANUAL_OVERRIDE",
-        "student_id": req.student_id,
-        "status": req.status
+        "student_id": str(req.student_id),
+        "student_code": st.student_code if st else "",
+        "name": st.full_name if st else "",
+        "status": req.status,
+        "time": record.marked_at.strftime("%H:%M:%S")
     })
     
     return {"success": True}
