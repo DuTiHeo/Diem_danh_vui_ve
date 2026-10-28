@@ -14,13 +14,11 @@ interface CourseItem {
 
 export default function LecturerDashboard() {
   const [courses, setCourses] = useState<CourseItem[]>([]);
-  const [isLoading, setIsLoading] = useState(() => Boolean(getToken()));
+  const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(() => {
-    return !getToken() ? "Vui lòng đăng nhập với vai trò Giảng viên để quản lý lớp học." : null;
-  });
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [user] = useState<{ email: string; role: string; full_name?: string } | null>(() => getUser());
+  const [user, setUser] = useState<{ email: string; role: string; full_name?: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadCourses = async () => {
@@ -35,18 +33,24 @@ export default function LecturerDashboard() {
   };
 
   useEffect(() => {
+    const currentUser = getUser();
+    setUser(currentUser);
     const token = getToken();
-    if (token) {
-      fetchApi<CourseItem[]>("/courses/")
-        .then((data) => {
-          setCourses(data);
-          setIsLoading(false);
-        })
-        .catch(() => {
-          setErrorMessage("Chưa đăng nhập hoặc phiên làm việc đã hết hạn. Vui lòng đăng nhập.");
-          setIsLoading(false);
-        });
+    if (!token) {
+      setErrorMessage("Vui lòng đăng nhập với vai trò Giảng viên để quản lý lớp học.");
+      setIsLoading(false);
+      return;
     }
+
+    fetchApi<CourseItem[]>("/courses/")
+      .then((data) => {
+        setCourses(data);
+        setIsLoading(false);
+      })
+      .catch(() => {
+        setErrorMessage("Chưa đăng nhập hoặc phiên làm việc đã hết hạn. Vui lòng đăng nhập.");
+        setIsLoading(false);
+      });
   }, []);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

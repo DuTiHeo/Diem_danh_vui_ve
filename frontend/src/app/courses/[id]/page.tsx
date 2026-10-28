@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, use, Suspense } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { fetchApi, getApiBaseUrl, getToken } from "@/lib/api";
 
 interface StudentInfo {
@@ -40,9 +40,9 @@ interface BuildingItem {
   name: string;
 }
 
-function CourseDetailContent({ params }: { params: Promise<{ id: string }> }) {
-  const resolvedParams = use(params);
-  const courseId = resolvedParams.id;
+function CourseDetailContent() {
+  const params = useParams<{ id: string }>();
+  const courseId = params?.id || "";
   const router = useRouter();
 
   const [course, setCourse] = useState<CourseDetail | null>(null);
@@ -430,10 +430,10 @@ function CourseDetailContent({ params }: { params: Promise<{ id: string }> }) {
   );
 }
 
-export default function CourseDetailPage(props: { params: Promise<{ id: string }> }) {
+export default function CourseDetailPage() {
   return (
     <Suspense fallback={<div className="p-8 text-center text-neu-gray">Đang tải thông tin lớp học...</div>}>
-      <CourseDetailContent {...props} />
+      <CourseDetailContent />
     </Suspense>
   );
 }

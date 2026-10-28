@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, use, Suspense, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useRef, Suspense, useCallback } from "react";
+import { useParams, useRouter } from "next/navigation";
 import QRCode from "qrcode";
 import { fetchApi, getApiBaseUrl } from "@/lib/api";
 
@@ -31,29 +31,17 @@ interface SessionData {
   students: StudentAttendee[];
 }
 
-function ProjectorContent({ params }: { params: Promise<{ session_id: string }> }) {
-  const resolvedParams = use(params);
-  const sessionId = resolvedParams.session_id;
+function ProjectorContent() {
+  const params = useParams<{ session_id: string }>();
+  const sessionId = params?.session_id || "";
   const router = useRouter();
 
   const [session, setSession] = useState<SessionData | null>(null);
   const [timeLeft, setTimeLeft] = useState(60);
   const [pinCode, setPinCode] = useState("000000");
-  const [lanIp, setLanIp] = useState(() => {
-    if (typeof window !== "undefined") {
-      const cur = window.location.hostname;
-      if (cur && cur !== "localhost" && cur !== "127.0.0.1") return cur;
-    }
-    return "172.18.57.85";
-  });
+  const [lanIp, setLanIp] = useState("");
   const [isEditingIp, setIsEditingIp] = useState(false);
-  const [customIpInput, setCustomIpInput] = useState(() => {
-    if (typeof window !== "undefined") {
-      const cur = window.location.hostname;
-      if (cur && cur !== "localhost" && cur !== "127.0.0.1") return cur;
-    }
-    return "172.18.57.85";
-  });
+  const [customIpInput, setCustomIpInput] = useState("");
   const [copiedLink, setCopiedLink] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
   const [students, setStudents] = useState<StudentAttendee[]>([]);
@@ -67,12 +55,15 @@ function ProjectorContent({ params }: { params: Promise<{ session_id: string }> 
   // Generate QR Code data URL with LAN IP
   const generateQR = useCallback(async (code: string, ipOverride?: string) => {
     try {
-      let targetIp = ipOverride || lanIp || "192.168.1.131";
-      if (typeof window !== "undefined") {
+      let targetIp = ipOverride || lanIp;
+      if (!targetIp && typeof window !== "undefined") {
         const curHost = window.location.hostname;
-        if (curHost && curHost !== "localhost" && curHost !== "127.0.0.1" && !ipOverride) {
+        if (curHost && curHost !== "localhost" && curHost !== "127.0.0.1") {
           targetIp = curHost;
         }
+      }
+      if (!targetIp) {
+        targetIp = "192.168.1.131";
       }
       const port = typeof window !== "undefined" && window.location.port ? `:${window.location.port}` : ":3000";
       const checkInUrl = `http://${targetIp}${port}/student/${code}`;
@@ -90,17 +81,38 @@ function ProjectorContent({ params }: { params: Promise<{ session_id: string }> 
     }
   }, [lanIp]);
 
-  // Load system network info
+  // Load system network info & detect browser IP
   useEffect(() => {
+    let hostIp = "";
+    if (typeof window !== "undefined") {
+      const curHost = window.location.hostname;
+      if (curHost && curHost !== "localhost" && curHost !== "127.0.0.1") {
+        hostIp = curHost;
+      }
+    }
+    if (hostIp) {
+      setLanIp(hostIp);
+      setCustomIpInput(hostIp);
+    }
+
     fetchApi<{ lan_ip: string }>("/system/network-info")
       .then((net) => {
         if (net?.lan_ip) {
-          setLanIp(net.lan_ip);
-          setCustomIpInput(net.lan_ip);
+          if (!hostIp) {
+            setLanIp(net.lan_ip);
+            setCustomIpInput(net.lan_ip);
+          }
         }
       })
       .catch(() => {});
   }, []);
+
+  // Regenerate QR when LAN IP changes
+  useEffect(() => {
+    if (pinCode && lanIp) {
+      generateQR(pinCode, lanIp);
+    }
+  }, [lanIp, pinCode, generateQR]);
 
   // Load Session Data
   const loadSession = useCallback(async () => {
@@ -438,15 +450,23 @@ function ProjectorContent({ params }: { params: Promise<{ session_id: string }> 
                 />
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
                     const clean = customIpInput.trim();
                     if (clean) {
                       setLanIp(clean);
                       generateQR(pinCode, clean);
                       setIsEditingIp(false);
+                      try {
+                        await fetchApi("/system/network-info", {
+                          method: "POST",
+                          body: JSON.stringify({ lan_ip: clean }),
+                        });
+                      } catch (e) {
+                        console.warn("Could not persist IP to server:", e);
+                      }
                     }
                   }}
-                  className="px-3 py-1 bg-neu-primary text-white rounded text-xs font-bold hover:bg-neu-secondary"
+                  className="px-3 py-1 bg-neu-primary text-white rounded text-xs font-bold hover:bg-neu-secondary cursor-pointer"
                 >
                   Áp dụng
                 </button>
@@ -596,10 +616,10 @@ function ProjectorContent({ params }: { params: Promise<{ session_id: string }> 
   );
 }
 
-export default function ProjectorScreen(props: { params: Promise<{ session_id: string }> }) {
+export default function ProjectorScreen() {
   return (
     <Suspense fallback={<div className="p-8 text-center text-neu-gray">Đang khởi động màn hình máy chiếu...</div>}>
-      <ProjectorContent {...props} />
+      <ProjectorContent />
     </Suspense>
   );
 }
