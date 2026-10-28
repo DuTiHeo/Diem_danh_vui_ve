@@ -39,9 +39,21 @@ function ProjectorContent({ params }: { params: Promise<{ session_id: string }> 
   const [session, setSession] = useState<SessionData | null>(null);
   const [timeLeft, setTimeLeft] = useState(60);
   const [pinCode, setPinCode] = useState("000000");
-  const [lanIp, setLanIp] = useState("192.168.1.131");
+  const [lanIp, setLanIp] = useState(() => {
+    if (typeof window !== "undefined") {
+      const cur = window.location.hostname;
+      if (cur && cur !== "localhost" && cur !== "127.0.0.1") return cur;
+    }
+    return "172.18.57.85";
+  });
   const [isEditingIp, setIsEditingIp] = useState(false);
-  const [customIpInput, setCustomIpInput] = useState("192.168.1.131");
+  const [customIpInput, setCustomIpInput] = useState(() => {
+    if (typeof window !== "undefined") {
+      const cur = window.location.hostname;
+      if (cur && cur !== "localhost" && cur !== "127.0.0.1") return cur;
+    }
+    return "172.18.57.85";
+  });
   const [copiedLink, setCopiedLink] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
   const [students, setStudents] = useState<StudentAttendee[]>([]);

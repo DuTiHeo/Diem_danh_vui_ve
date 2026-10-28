@@ -26,7 +26,7 @@ services:
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-neu_admin}:${POSTGRES_PASSWORD:-neu_password}@db:5432/${POSTGRES_DB:-neu_attendance}
       - JWT_SECRET=${JWT_SECRET:-supersecretkey_change_me_in_production}
       - DEV_MOCK_AUTH=${DEV_MOCK_AUTH:-true}
-      - SERVER_LAN_IP=${SERVER_LAN_IP:-192.168.1.131}
+      - SERVER_LAN_IP=${SERVER_LAN_IP:-172.18.57.85}
     ports:
       - "8000:8000"
     volumes:
@@ -41,8 +41,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://192.168.1.131:8000}
-      - NEXT_PUBLIC_LAN_IP=${NEXT_PUBLIC_LAN_IP:-192.168.1.131}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      - NEXT_PUBLIC_LAN_IP=${NEXT_PUBLIC_LAN_IP:-172.18.57.85}
     volumes:
       - ../frontend/src:/app/src
       - ../frontend/public:/app/public

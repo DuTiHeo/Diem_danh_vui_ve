@@ -2,7 +2,7 @@
 
 import { useState, useEffect, use, Suspense } from "react";
 import { useRouter } from "next/navigation";
-import { fetchApi, API_BASE_URL, getToken } from "@/lib/api";
+import { fetchApi, getApiBaseUrl, getToken } from "@/lib/api";
 
 interface StudentInfo {
   id: string;
@@ -113,7 +113,7 @@ function CourseDetailContent({ params }: { params: Promise<{ id: string }> }) {
 
   const handleExport = () => {
     const token = getToken();
-    const url = `${API_BASE_URL}/api/v1/courses/${courseId}/export`;
+    const url = `${getApiBaseUrl()}/api/v1/courses/${courseId}/export`;
     
     // Download via fetch with auth header
     fetch(url, {

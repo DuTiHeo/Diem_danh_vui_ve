@@ -2,18 +2,21 @@ export function getApiBaseUrl(): string {
   if (typeof window !== "undefined") {
     const host = window.location.hostname;
     if (host) {
-      if (host === "localhost" || host === "127.0.0.1") {
-        return process.env.NEXT_PUBLIC_API_URL || "http://192.168.1.131:8000";
+      // If deployed to external production domain (e.g. Vercel), respect NEXT_PUBLIC_API_URL
+      const envUrl = process.env.NEXT_PUBLIC_API_URL;
+      if (envUrl && !envUrl.includes("localhost") && !envUrl.includes("127.0.0.1") && !envUrl.includes("192.168.") && !envUrl.includes("172.")) {
+        return envUrl;
       }
-      return `http://${host}:8000`;
+      const protocol = window.location.protocol || "http:";
+      return `${protocol}//${host}:8000`;
     }
   }
-  return process.env.NEXT_PUBLIC_API_URL || "http://192.168.1.131:8000";
+  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 }
 
-export const API_BASE_URL = typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1"
-  ? `http://${window.location.hostname}:8000`
-  : (process.env.NEXT_PUBLIC_API_URL || "http://192.168.1.131:8000");
+export const API_BASE_URL = typeof window !== "undefined"
+  ? `${window.location.protocol || "http:"}//${window.location.hostname}:8000`
+  : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000");
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
