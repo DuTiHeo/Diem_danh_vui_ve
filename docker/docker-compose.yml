@@ -1,39 +1,110 @@
-version: '3.8'
-
 services:
-  db:
+  caddy:
+    image: caddy:2-alpine
+    container_name: neu_attendance_caddy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - DOMAIN_OR_IP=${DOMAIN_OR_IP:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+      - backend-1
+      - backend-2
+      - backend-3
+    networks:
+      - neu_internal_net
+
+  postgres:
     image: postgres:16-alpine
-    container_name: neu_attendance_db
+    container_name: neu_attendance_postgres
     restart: always
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-neu_admin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-neu_password}
       POSTGRES_DB: ${POSTGRES_DB:-neu_attendance}
-    ports:
-      - "5432:5432"
+    expose:
+      - "5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-neu_admin} -d ${POSTGRES_DB:-neu_attendance}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - neu_internal_net
 
-  backend:
+  redis:
+    image: redis:7-alpine
+    container_name: neu_attendance_redis
+    restart: always
+    command: ["redis-server", "--appendonly", "yes"]
+    expose:
+      - "6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - neu_internal_net
+
+  backend-1: &backend_template
     build:
       context: ../backend
       dockerfile: ../docker/backend.Dockerfile
-    container_name: neu_attendance_backend
+    container_name: neu_attendance_backend_1
     restart: always
     depends_on:
-      - db
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     env_file:
       - ../.env
     environment:
-      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-neu_admin}:${POSTGRES_PASSWORD:-neu_password}@db:5432/${POSTGRES_DB:-neu_attendance}
+      - BACKEND_INSTANCE_ID=backend-1
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-neu_admin}:${POSTGRES_PASSWORD:-neu_password}@postgres:5432/${POSTGRES_DB:-neu_attendance}
+      - REDIS_URL=redis://redis:6379/0
       - JWT_SECRET=${JWT_SECRET:-supersecretkey_change_me_in_production}
       - DEV_MOCK_AUTH=${DEV_MOCK_AUTH:-true}
       - SERVER_LAN_IP=${SERVER_LAN_IP:-}
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000"
     volumes:
       - ../backend:/app
-      - ../.env:/app/.env
+    networks:
+      - neu_internal_net
+
+  backend-2:
+    <<: *backend_template
+    container_name: neu_attendance_backend_2
+    environment:
+      - BACKEND_INSTANCE_ID=backend-2
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-neu_admin}:${POSTGRES_PASSWORD:-neu_password}@postgres:5432/${POSTGRES_DB:-neu_attendance}
+      - REDIS_URL=redis://redis:6379/0
+      - JWT_SECRET=${JWT_SECRET:-supersecretkey_change_me_in_production}
+      - DEV_MOCK_AUTH=${DEV_MOCK_AUTH:-true}
+      - SERVER_LAN_IP=${SERVER_LAN_IP:-}
+
+  backend-3:
+    <<: *backend_template
+    container_name: neu_attendance_backend_3
+    environment:
+      - BACKEND_INSTANCE_ID=backend-3
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-neu_admin}:${POSTGRES_PASSWORD:-neu_password}@postgres:5432/${POSTGRES_DB:-neu_attendance}
+      - REDIS_URL=redis://redis:6379/0
+      - JWT_SECRET=${JWT_SECRET:-supersecretkey_change_me_in_production}
+      - DEV_MOCK_AUTH=${DEV_MOCK_AUTH:-true}
+      - SERVER_LAN_IP=${SERVER_LAN_IP:-}
 
   frontend:
     build:
@@ -41,20 +112,25 @@ services:
       dockerfile: ../docker/frontend.Dockerfile
     container_name: neu_attendance_frontend
     restart: always
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
     env_file:
       - ../.env
-      - ../frontend/.env.local
     environment:
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-}
       - NEXT_PUBLIC_LAN_IP=${NEXT_PUBLIC_LAN_IP:-}
     volumes:
       - ../frontend/src:/app/src
       - ../frontend/public:/app/public
-      - ../frontend/.env.local:/app/.env.local
-      - ../.env:/app/.env
+    networks:
+      - neu_internal_net
+
+networks:
+  neu_internal_net:
+    driver: bridge
 
 volumes:
   postgres_data:
-
+  redis_data:
+  caddy_data:
+  caddy_config:
