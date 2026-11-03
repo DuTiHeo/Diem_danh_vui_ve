@@ -87,11 +87,12 @@ flowchart TD
 ### 2.2. Cấu hình `Caddyfile` Chuẩn
 ```caddyfile
 {
-    # Tự động quản lý SSL hoặc dùng internal certs khi chạy IP nội bộ
-    auto_https on
+    # Bật SSL nội bộ cho HTTPS (:443) và cho phép truy cập trực tiếp cả HTTP (:80)
+    local_certs
+    auto_https disable_redirects
 }
 
-{$DOMAIN_OR_IP:localhost} {
+{$DOMAIN_OR_IP:localhost}, :80 {
     # 1. Điều hướng toàn bộ REST API và WebSocket vào cụm 3 Backend
     handle /api/v1/* {
         reverse_proxy backend-1:8000 backend-2:8000 backend-3:8000 {
