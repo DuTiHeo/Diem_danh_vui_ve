@@ -6,6 +6,7 @@ services:
     ports:
       - "80:80"
       - "443:443"
+      - "8000:8000"
     environment:
       - DOMAIN_OR_IP=${DOMAIN_OR_IP:-localhost}
     volumes:
@@ -28,6 +29,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-neu_admin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-neu_password}
       POSTGRES_DB: ${POSTGRES_DB:-neu_attendance}
+    ports:
+      - "127.0.0.1:5432:5432"
     expose:
       - "5432"
     volumes:
@@ -45,6 +48,8 @@ services:
     container_name: neu_attendance_redis
     restart: always
     command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:6379:6379"
     expose:
       - "6379"
     volumes:

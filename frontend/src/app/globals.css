@@ -1,17 +1,17 @@
 @import "tailwindcss";
 
 :root {
-  /* NEU Design Tokens */
-  --neu-primary: #0963a3;
-  --neu-secondary: #0c7abf;
-  --neu-bg: #f4f5f7;
-  --neu-text: #172b4d;
-  --neu-red: #f44336;
-  --neu-gray: #757575;
-  --neu-border: #bdbdbd;
+  /* NEU Brand Design Tokens (#003366) */
+  --neu-primary: #003366;
+  --neu-secondary: #0284c7;
+  --neu-bg: #f4f6f9;
+  --neu-text: #0f172a;
+  --neu-red: #ef4444;
+  --neu-gray: #64748b;
+  --neu-border: #cbd5e1;
 
   --background: #ffffff;
-  --foreground: #172b4d;
+  --foreground: #0f172a;
 }
 
 @theme inline {
@@ -30,12 +30,11 @@
 body {
   background-color: var(--neu-bg);
   color: var(--neu-text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   margin: 0;
   padding: 0;
 }
 
-/* Minimalistic Clean Layout */
 h1, h2, h3, h4, h5, h6 {
   color: var(--neu-text);
   font-weight: 600;

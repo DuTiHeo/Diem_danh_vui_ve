@@ -1,12 +1,21 @@
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Depends, Request, HTTPException, Query
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 import os
 import socket
 
+from app.api import deps
+from app.db.session import get_db
+from app.models.attendance import AuditLog
+from app.models.users import User
+
 router = APIRouter()
+
 
 class UpdateNetworkInfoRequest(BaseModel):
     lan_ip: str
+
 
 def is_docker_or_loopback(ip: str) -> bool:
     if not ip or ip in ["localhost", "127.0.0.1", "0.0.0.0", "backend"]:
@@ -21,6 +30,7 @@ def is_docker_or_loopback(ip: str) -> bool:
         except ValueError:
             pass
     return False
+
 
 def get_server_lan_ip(request: Request | None = None) -> str:
     # 1. Live read from .env files on disk (both root .env and frontend .env.local)
@@ -38,7 +48,9 @@ def get_server_lan_ip(request: Request | None = None) -> str:
                 with open(env_path, "r", encoding="utf-8") as f:
                     for line in f:
                         line = line.strip()
-                        if line.startswith("SERVER_LAN_IP=") or line.startswith("NEXT_PUBLIC_LAN_IP="):
+                        if line.startswith("SERVER_LAN_IP=") or line.startswith(
+                            "NEXT_PUBLIC_LAN_IP="
+                        ):
                             val = line.split("=", 1)[1].strip().strip('"').strip("'")
                             if val and not is_docker_or_loopback(val):
                                 return val
@@ -47,7 +59,11 @@ def get_server_lan_ip(request: Request | None = None) -> str:
 
     # 2. If request came from a client with Host header, prioritize that host!
     if request:
-        host_header = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
+        host_header = (
+            request.headers.get("x-forwarded-host")
+            or request.headers.get("host")
+            or ""
+        )
         host_only = host_header.split(":")[0].strip()
         if host_only and not is_docker_or_loopback(host_only):
             return host_only
@@ -71,6 +87,7 @@ def get_server_lan_ip(request: Request | None = None) -> str:
 
     return "192.168.1.131"
 
+
 @router.get("/network-info")
 async def get_network_info(request: Request):
     lan_ip = get_server_lan_ip(request)
@@ -80,8 +97,9 @@ async def get_network_info(request: Request):
         "frontend_port": 3000,
         "backend_port": 8000,
         "client_ip": client_ip,
-        "checkin_base_url": f"http://{lan_ip}:3000"
+        "checkin_base_url": f"http://{lan_ip}:3000",
     }
+
 
 @router.post("/network-info")
 async def update_network_info(req: UpdateNetworkInfoRequest):
@@ -124,7 +142,9 @@ async def update_network_info(req: UpdateNetworkInfoRequest):
                     else:
                         updated_lines.append(line)
 
-                if not found_server_ip and ("frontend" not in env_path and ".local" not in env_path):
+                if not found_server_ip and (
+                    "frontend" not in env_path and ".local" not in env_path
+                ):
                     updated_lines.append(f"SERVER_LAN_IP={new_ip}")
                 if not found_next_ip:
                     updated_lines.append(f"NEXT_PUBLIC_LAN_IP={new_ip}")
@@ -139,5 +159,35 @@ async def update_network_info(req: UpdateNetworkInfoRequest):
         "success": True,
         "lan_ip": new_ip,
         "persisted_to": persisted,
-        "message": f"Đã cập nhật IP mạng thành {new_ip}"
+        "message": f"Đã cập nhật IP mạng thành {new_ip}",
     }
+
+
+@router.get("/audit-logs")
+async def get_audit_logs(
+    action: str | None = Query(default=None),
+    limit: int = Query(default=100, ge=1, le=500),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(deps.get_current_lecturer),
+):
+    """
+    UC21: Tra cứu Nhật ký kiểm toán bảo mật (AuditLog).
+    """
+    stmt = select(AuditLog).order_by(AuditLog.created_at.desc()).limit(limit)
+    if action:
+        stmt = stmt.where(AuditLog.action == action)
+
+    res = await db.execute(stmt)
+    logs = res.scalars().all()
+    return [
+        {
+            "id": str(log.id),
+            "user_id": str(log.user_id) if log.user_id else None,
+            "action": log.action,
+            "details": log.details,
+            "ip_address": log.ip_address,
+            "user_agent": log.user_agent,
+            "created_at": log.created_at.isoformat() if log.created_at else None,
+        }
+        for log in logs
+    ]

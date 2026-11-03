@@ -39,9 +39,6 @@ async def upload_course_excel(
         raise HTTPException(status_code=400, detail=f"Lỗi đọc file: {str(e)}")
         
     course_id = uuid.uuid4()
-    
-    # 2. Lưu phôi template
-    template_path = ExcelService.save_template(contents, str(course_id))
 
     # Auto detect building from room name
     await ensure_buildings_seeded(db)
@@ -53,7 +50,7 @@ async def upload_course_excel(
             building_id = b.id
             break
     
-    # 3. Tạo Course record
+    # 3. Tạo Course record (BYTEA TOAST theo SYSTEM_DESIGN.md Chương 5.1)
     course = Course(
         id=course_id,
         course_code=parsed_data.get("class_section", "TBD")[:50],
@@ -62,7 +59,8 @@ async def upload_course_excel(
         room_name=parsed_data["room_name"],
         building_id=building_id,
         lecturer_id=current_user.id,
-        excel_template_path=template_path,
+        template_binary=contents,
+        template_filename=file.filename,
         total_sessions=parsed_data["total_sessions"]
     )
     db.add(course)
